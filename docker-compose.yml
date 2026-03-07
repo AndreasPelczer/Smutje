@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  smutje:
+    build: ./server
+    container_name: smutje
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      - CLIENT_DIR=/client
+      - DB_PATH=/app/data/smutje.db
+    volumes:
+      - ./data:/app/data
+      - ./client:/client

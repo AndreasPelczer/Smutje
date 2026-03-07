@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smutje – Team-Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --primary: #0f3460;
+      --accent: #e94560;
+      --text: #eee;
+      --text-muted: #999;
+      --border: #2a2a4a;
+    }
+
+    body {
+      font-family: 'IBM Plex Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* --- Login --- */
+    #login-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    #login-screen h1 { font-size: 2rem; }
+    #login-screen input {
+      padding: 10px 16px;
+      width: 300px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+
+    #login-screen button {
+      padding: 10px 32px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    #login-screen button:hover { opacity: 0.9; }
+    #login-error { color: var(--accent); font-size: 0.85rem; }
+
+    /* --- App-Layout --- */
+    #app {
+      display: none;
+      height: 100vh;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 { font-size: 1.1rem; }
+    header .user-info { color: var(--text-muted); font-size: 0.8rem; }
+
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* --- Sidebar --- */
+    .sidebar {
+      width: 200px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 12px 0;
+    }
+
+    .sidebar h3 {
+      padding: 0 12px 8px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+
+    .sidebar .channel {
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      border-left: 3px solid transparent;
+    }
+
+    .sidebar .channel:hover { background: rgba(255,255,255,0.05); }
+    .sidebar .channel.active {
+      background: rgba(233, 69, 96, 0.15);
+      border-left-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .sidebar .spacer { flex: 1; }
+
+    .sidebar .video-btn {
+      margin: 8px 12px;
+      padding: 8px;
+      background: var(--primary);
+      border: none;
+      border-radius: 6px;
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    .sidebar .video-btn:hover { background: var(--accent); }
+
+    /* --- Chat-Bereich --- */
+    .chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .msg {
+      max-width: 70%;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: var(--surface);
+      word-wrap: break-word;
+    }
+
+    .msg.own {
+      align-self: flex-end;
+      background: var(--primary);
+    }
+
+    .msg .meta {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .msg .body { font-size: 0.85rem; line-height: 1.4; }
+
+    /* --- Eingabe --- */
+    .input-bar {
+      display: flex;
+      padding: 10px 16px;
+      gap: 8px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .input-bar input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .input-bar input:focus { border-color: var(--accent); }
+
+    .input-bar button {
+      padding: 10px 20px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85rem;
+    }
+
+    /* --- Jitsi-Overlay --- */
+    #jitsi-container {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #000;
+      z-index: 1000;
+    }
+
+    #jitsi-container .close-btn {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      z-index: 1001;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.85rem;
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 600px) {
+      .sidebar { width: 140px; }
+      .msg { max-width: 85%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Login -->
+  <div id="login-screen">
+    <h1>Smutje</h1>
+    <input type="text" id="token-input" placeholder="Token eingeben..." autofocus>
+    <button onclick="doLogin()">Anmelden</button>
+    <div id="login-error"></div>
+  </div>
+
+  <!-- App -->
+  <div id="app">
+    <header>
+      <h1>Smutje</h1>
+      <span class="user-info" id="user-display"></span>
+    </header>
+
+    <div class="main">
+      <div class="sidebar">
+        <h3>Channels</h3>
+        <div id="channel-list"></div>
+        <div class="spacer"></div>
+        <button class="video-btn" onclick="startVideo()">Video-Call</button>
+      </div>
+
+      <div class="chat">
+        <div class="chat-header" id="chat-header"># allgemein</div>
+        <div class="messages" id="messages"></div>
+        <div class="input-bar">
+          <input type="text" id="msg-input" placeholder="Nachricht schreiben..." autocomplete="off">
+          <button onclick="sendMessage()">Senden</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Jitsi Video-Container -->
+  <div id="jitsi-container">
+    <button class="close-btn" onclick="stopVideo()">Auflegen</button>
+  </div>
+
+  <script>
+    // --- Zustand ---
+    let token = '';
+    let username = '';
+    let currentChannel = 'allgemein';
+    let ws = null;
+
+    // --- Login ---
+    async function doLogin() {
+      const input = document.getElementById('token-input');
+      const err = document.getElementById('login-error');
+      token = input.value.trim();
+
+      try {
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Token': token },
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          err.textContent = data.error || 'Login fehlgeschlagen';
+          return;
+        }
+
+        username = data.name;
+        document.getElementById('user-display').textContent = username;
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+
+        await loadChannels();
+        await loadMessages();
+        connectWebSocket();
+      } catch (e) {
+        err.textContent = 'Verbindung fehlgeschlagen';
+      }
+    }
+
+    // Enter-Taste im Token-Feld
+    document.getElementById('token-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doLogin();
+    });
+
+    // --- Channels ---
+    async function loadChannels() {
+      const res = await fetch('/channels', { headers: { 'X-Token': token } });
+      const channels = await res.json();
+      const list = document.getElementById('channel-list');
+      list.innerHTML = '';
+
+      for (const ch of channels) {
+        const el = document.createElement('div');
+        el.className = 'channel' + (ch === currentChannel ? ' active' : '');
+        el.textContent = '# ' + ch;
+        el.onclick = () => switchChannel(ch);
+        list.appendChild(el);
+      }
+    }
+
+    async function switchChannel(ch) {
+      currentChannel = ch;
+      document.getElementById('chat-header').textContent = '# ' + ch;
+
+      // Aktiven Channel in Sidebar markieren
+      document.querySelectorAll('.sidebar .channel').forEach((el) => {
+        el.classList.toggle('active', el.textContent === '# ' + ch);
+      });
+
+      // WebSocket: Channel wechseln
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'join', channel: ch }));
+      }
+
+      await loadMessages();
+    }
+
+    // --- Nachrichten ---
+    async function loadMessages() {
+      const res = await fetch('/messages/' + encodeURIComponent(currentChannel), {
+        headers: { 'X-Token': token },
+      });
+      const msgs = await res.json();
+      const container = document.getElementById('messages');
+      container.innerHTML = '';
+
+      for (const m of msgs) {
+        appendMessage(m.user, m.text, m.ts);
+      }
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function appendMessage(user, text, ts) {
+      const container = document.getElementById('messages');
+      const el = document.createElement('div');
+      el.className = 'msg' + (user === username ? ' own' : '');
+
+      const time = new Date(ts).toLocaleTimeString('de-DE', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      el.innerHTML =
+        '<div class="meta">' + escapeHtml(user) + ' · ' + time + '</div>' +
+        '<div class="body">' + escapeHtml(text) + '</div>';
+
+      container.appendChild(el);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('msg-input');
+      const text = input.value.trim();
+      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+      ws.send(JSON.stringify({ type: 'message', text }));
+      input.value = '';
+      input.focus();
+    }
+
+    // Enter-Taste im Nachrichtenfeld
+    document.getElementById('msg-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    // --- WebSocket ---
+    function connectWebSocket() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(proto + '//' + location.host);
+
+      ws.onopen = () => {
+        // Erste Nachricht: Token zur Authentifizierung senden
+        ws.send(JSON.stringify({ token }));
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'message' && msg.channel === currentChannel) {
+          appendMessage(msg.user, msg.text, msg.ts);
+        }
+      };
+
+      ws.onclose = () => {
+        // Automatisch neu verbinden nach 3 Sekunden
+        setTimeout(connectWebSocket, 3000);
+      };
+    }
+
+    // --- Jitsi Video-Integration ---
+    // Nutzt die öffentliche Jitsi-Instanz meet.jit.si
+    // Raum-Name basiert auf aktuellem Channel
+    let jitsiApi = null;
+
+    function startVideo() {
+      const container = document.getElementById('jitsi-container');
+      container.style.display = 'block';
+
+      const roomName = 'smutje-' + currentChannel;
+
+      // Jitsi IFrame API laden (falls noch nicht geladen)
+      if (typeof JitsiMeetExternalAPI === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://meet.jit.si/external_api.js';
+        script.onload = () => initJitsi(roomName);
+        document.head.appendChild(script);
+      } else {
+        initJitsi(roomName);
+      }
+    }
+
+    function initJitsi(roomName) {
+      jitsiApi = new JitsiMeetExternalAPI('meet.jit.si', {
+        roomName: roomName,
+        parentNode: document.getElementById('jitsi-container'),
+        userInfo: { displayName: username },
+        configOverwrite: {
+          startWithAudioMuted: true,
+          startWithVideoMuted: false,
+          prejoinPageEnabled: false,
+        },
+        interfaceConfigOverwrite: {
+          TOOLBAR_BUTTONS: [
+            'microphone', 'camera', 'desktop', 'chat',
+            'raisehand', 'hangup', 'tileview',
+          ],
+        },
+      });
+
+      jitsiApi.addEventListener('readyToClose', stopVideo);
+    }
+
+    function stopVideo() {
+      if (jitsiApi) {
+        jitsiApi.dispose();
+        jitsiApi = null;
+      }
+      document.getElementById('jitsi-container').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
