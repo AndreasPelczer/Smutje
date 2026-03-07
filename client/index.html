@@ -446,8 +446,9 @@
     }
 
     // --- Jitsi Video-Integration ---
-    // Nutzt die öffentliche Jitsi-Instanz meet.jit.si
+    // Eigene Jitsi-Instanz auf video.pelczer.de
     // Raum-Name basiert auf aktuellem Channel
+    const JITSI_DOMAIN = 'video.pelczer.de';
     let jitsiApi = null;
 
     function startVideo() {
@@ -459,7 +460,7 @@
       // Jitsi IFrame API laden (falls noch nicht geladen)
       if (typeof JitsiMeetExternalAPI === 'undefined') {
         const script = document.createElement('script');
-        script.src = 'https://meet.jit.si/external_api.js';
+        script.src = 'https://' + JITSI_DOMAIN + '/external_api.js';
         script.onload = () => initJitsi(roomName);
         document.head.appendChild(script);
       } else {
@@ -468,7 +469,7 @@
     }
 
     function initJitsi(roomName) {
-      jitsiApi = new JitsiMeetExternalAPI('meet.jit.si', {
+      jitsiApi = new JitsiMeetExternalAPI(JITSI_DOMAIN, {
         roomName: roomName,
         parentNode: document.getElementById('jitsi-container'),
         userInfo: { displayName: username },
