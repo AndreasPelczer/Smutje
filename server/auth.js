@@ -14,14 +14,15 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Ungültiges Token' });
   }
 
-  req.user = user;
+  req.user = { id: user.id, name: user.name };
   next();
 }
 
 // Token-Prüfung für WebSocket-Verbindungen (gibt User oder null zurück)
 function authenticateToken(token) {
   if (!token) return null;
-  return stmts.getUserByToken.get(token) || null;
+  const user = stmts.getUserByToken.get(token);
+  return user ? { id: user.id, name: user.name } : null;
 }
 
 module.exports = { authMiddleware, authenticateToken };

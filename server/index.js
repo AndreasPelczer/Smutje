@@ -15,8 +15,9 @@ const server = http.createServer(app);
 
 app.use(express.json());
 
-// Client-Dateien ausliefern
-app.use(express.static(path.join(__dirname, '..', 'client')));
+// Client-Dateien ausliefern (lokal: ../client, Docker: /client)
+const clientDir = process.env.CLIENT_DIR || path.join(__dirname, '..', 'client');
+app.use(express.static(clientDir));
 
 // --- REST-Endpunkte ---
 
@@ -50,19 +51,9 @@ const wss = new WebSocketServer({ server });
 // Verbundene Clients: Map<ws, { user, channel }>
 const clients = new Map();
 
-wss.on('connection', (ws, req) => {
-  // Token aus Query-Parameter lesen (?token=...)
-  const url = new URL(req.url, `http://localhost:${PORT}`);
-  const token = url.searchParams.get('token');
-  const user = authenticateToken(token);
-
-  if (!user) {
-    ws.close(4001, 'Nicht authentifiziert');
-    return;
-  }
-
-  // Standard-Channel: allgemein
-  clients.set(ws, { user: user.name, channel: 'allgemein' });
+wss.on('connection', (ws) => {
+  // Noch nicht authentifiziert – warte auf erste Nachricht mit Token
+  let authenticated = false;
 
   ws.on('message', (raw) => {
     let msg;
@@ -72,10 +63,22 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    // Erste Nachricht muss Token enthalten
+    if (!authenticated) {
+      const user = authenticateToken(msg.token);
+      if (!user) {
+        ws.close(4001, 'Nicht authentifiziert');
+        return;
+      }
+      authenticated = true;
+      clients.set(ws, { user, channel: 'allgemein' });
+      return;
+    }
+
     const client = clients.get(ws);
 
     // Channel wechseln
-    if (msg.type === 'join') {
+    if (msg.type === 'join' && msg.channel) {
       client.channel = msg.channel;
       return;
     }
@@ -83,22 +86,26 @@ wss.on('connection', (ws, req) => {
     // Nachricht senden
     if (msg.type === 'message' && msg.text && msg.text.trim()) {
       const text = msg.text.trim().slice(0, 2000); // Max 2000 Zeichen
-      const channel = client.channel;
+      const channelName = client.channel;
+
+      // Channel-ID aus DB holen
+      const channel = stmts.getChannelByName.get(channelName);
+      if (!channel) return;
 
       // In DB speichern
-      stmts.insertMessage.run(channel, client.user, text);
+      stmts.insertMessage.run(channel.id, client.user.id, text);
 
       // An alle Clients im gleichen Channel senden
       const payload = JSON.stringify({
         type: 'message',
-        channel,
-        user: client.user,
+        channel: channelName,
+        user: client.user.name,
         text,
         ts: new Date().toISOString(),
       });
 
       for (const [peer, info] of clients) {
-        if (info.channel === channel && peer.readyState === 1) {
+        if (info.channel === channelName && peer.readyState === 1) {
           peer.send(payload);
         }
       }

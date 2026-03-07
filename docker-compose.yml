@@ -2,9 +2,7 @@ version: "3.8"
 
 services:
   smutje:
-    build:
-      context: .
-      dockerfile: server/Dockerfile
+    build: ./server
     container_name: smutje
     restart: unless-stopped
     ports:
@@ -12,9 +10,8 @@ services:
     env_file:
       - .env
     environment:
-      - DB_PATH=/app/server/data/smutje.db
+      - CLIENT_DIR=/client
+      - DB_PATH=/app/data/smutje.db
     volumes:
-      - smutje-data:/app/server/data
-
-volumes:
-  smutje-data:
+      - ./data:/app/data
+      - ./client:/client
