@@ -252,7 +252,7 @@
   <!-- Login -->
   <div id="login-screen">
     <h1>Smutje</h1>
-    <input type="text" id="token-input" placeholder="Token eingeben..." autofocus>
+    <input type="text" id="name-input" placeholder="Dein Name..." autofocus>
     <button onclick="doLogin()">Anmelden</button>
     <div id="login-error"></div>
   </div>
@@ -290,21 +290,26 @@
 
   <script>
     // --- Zustand ---
-    let token = '';
     let username = '';
     let currentChannel = 'allgemein';
     let ws = null;
 
     // --- Login ---
     async function doLogin() {
-      const input = document.getElementById('token-input');
+      const input = document.getElementById('name-input');
       const err = document.getElementById('login-error');
-      token = input.value.trim();
+      const name = input.value.trim();
+
+      if (!name) {
+        err.textContent = 'Bitte Name eingeben';
+        return;
+      }
 
       try {
         const res = await fetch('/login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Token': token },
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
         });
         const data = await res.json();
 
@@ -326,14 +331,14 @@
       }
     }
 
-    // Enter-Taste im Token-Feld
-    document.getElementById('token-input').addEventListener('keydown', (e) => {
+    // Enter-Taste im Name-Feld
+    document.getElementById('name-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') doLogin();
     });
 
     // --- Channels ---
     async function loadChannels() {
-      const res = await fetch('/channels', { headers: { 'X-Token': token } });
+      const res = await fetch('/channels');
       const channels = await res.json();
       const list = document.getElementById('channel-list');
       list.innerHTML = '';
@@ -366,9 +371,7 @@
 
     // --- Nachrichten ---
     async function loadMessages() {
-      const res = await fetch('/messages/' + encodeURIComponent(currentChannel), {
-        headers: { 'X-Token': token },
-      });
+      const res = await fetch('/messages/' + encodeURIComponent(currentChannel));
       const msgs = await res.json();
       const container = document.getElementById('messages');
       container.innerHTML = '';
@@ -425,8 +428,8 @@
       ws = new WebSocket(proto + '//' + location.host);
 
       ws.onopen = () => {
-        // Erste Nachricht: Token zur Authentifizierung senden
-        ws.send(JSON.stringify({ token }));
+        // Erste Nachricht: Name senden
+        ws.send(JSON.stringify({ name: username }));
       };
 
       ws.onmessage = (event) => {
