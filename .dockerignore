@@ -1,0 +1,28 @@
+# Hier stehen die Dinge, die NICHT ins Image gehoeren.
+#
+# Der wichtigste Eintrag ist node_modules. Das Dockerfile macht:
+#     RUN npm install --production   -> baut die Module fuer Linux
+#     COPY . .                       -> kopiert alles hinterher drueber
+# Ohne diese Datei landen damit die auf dem Mac gebauten Module im
+# Container und ueberschreiben die frisch gebauten Linux-Fassungen.
+# better_sqlite3.node ist dort ein "Mach-O 64-bit bundle arm64" — der
+# Container baut sauber, startet sauber und stirbt beim ersten
+# Datenbankzugriff. Geprueft am 11.09.2026.
+node_modules
+**/node_modules
+
+# Datenbank und Zustand gehoeren ins Volume, nicht ins Image —
+# sonst traegt jedes Image einen alten Chatverlauf mit sich herum.
+data
+**/data
+*.db
+*.db-shm
+*.db-wal
+
+# Geheimnisse kommen zur Laufzeit ueber env_file, nicht ins Image.
+.env
+
+.git
+.gitignore
+*.log
+.DS_Store
