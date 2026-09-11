@@ -2,3 +2,14 @@ node_modules/
 .env
 *.db
 server/data/
+
+# Laufzeitdaten des Docker-Betriebs: das Volume ./data traegt die
+# Datenbank samt WAL. Die gehoert nicht ins Repo — und ein Chatverlauf
+# schon gar nicht.
+data/
+*.db-wal
+*.db-shm
+
+# Handarbeit-Sicherungen (vor Eingriffen angelegt)
+_backups/
+*.backup_*
