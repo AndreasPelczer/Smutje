@@ -314,11 +314,19 @@
         const data = await res.json();
 
         if (!res.ok) {
+          // Ein abgelehntes Token darf nicht gespeichert bleiben, sonst
+          // scheitert jeder weitere Start stumm mit demselben Fehler.
+          try { localStorage.removeItem('smutje-token'); } catch (e) {}
           err.textContent = data.error || 'Login fehlgeschlagen';
           return;
         }
 
         username = data.name;
+        // Token merken, damit es nicht bei jedem Oeffnen neu getippt
+        // werden muss — es ist 36 Zeichen lang, das merkt sich niemand.
+        // localStorage bleibt auf diesem Geraet und in diesem Browser;
+        // es wandert nicht mit und liegt nicht auf dem Server.
+        try { localStorage.setItem('smutje-token', token); } catch (e) {}
         document.getElementById('user-display').textContent = username;
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
@@ -448,7 +456,14 @@
     // --- Jitsi Video-Integration ---
     // Eigene Jitsi-Instanz auf video.pelczer.de
     // Raum-Name basiert auf aktuellem Channel
+    // Bevorzugt die eigene Instanz. Die gibt es zum Stand 11.09.2026
+    // aber noch nicht (video.pelczer.de loest nicht auf, NXDOMAIN) —
+    // darum unten ein Rueckfall auf die oeffentliche Instanz, statt den
+    // Knopf ins Leere laufen zu lassen. Sobald die eigene Instanz steht,
+    // greift sie von selbst wieder; hier ist dann nichts zu aendern.
     const JITSI_DOMAIN = 'video.pelczer.de';
+    const JITSI_RUECKFALL = 'meet.jit.si';
+    let jitsiDomainAktiv = JITSI_DOMAIN;
     let jitsiApi = null;
 
     function startVideo() {
@@ -459,17 +474,31 @@
 
       // Jitsi IFrame API laden (falls noch nicht geladen)
       if (typeof JitsiMeetExternalAPI === 'undefined') {
-        const script = document.createElement('script');
-        script.src = 'https://' + JITSI_DOMAIN + '/external_api.js';
-        script.onload = () => initJitsi(roomName);
-        document.head.appendChild(script);
+        const laden = (domain, beiFehler) => {
+          const script = document.createElement('script');
+          script.src = 'https://' + domain + '/external_api.js';
+          script.onload = () => { jitsiDomainAktiv = domain; initJitsi(roomName); };
+          script.onerror = () => {
+            script.remove();
+            if (beiFehler) {
+              console.warn('Jitsi auf ' + domain + ' nicht erreichbar — weiche aus auf ' + beiFehler);
+              laden(beiFehler, null);
+            } else {
+              container.innerHTML = '<div style="color:#ccc;padding:2rem;text-align:center">'
+                + 'Kein Videodienst erreichbar.<br><small>Weder ' + JITSI_DOMAIN
+                + ' noch ' + JITSI_RUECKFALL + ' haben geantwortet.</small></div>';
+            }
+          };
+          document.head.appendChild(script);
+        };
+        laden(JITSI_DOMAIN, JITSI_RUECKFALL);
       } else {
         initJitsi(roomName);
       }
     }
 
     function initJitsi(roomName) {
-      jitsiApi = new JitsiMeetExternalAPI(JITSI_DOMAIN, {
+      jitsiApi = new JitsiMeetExternalAPI(jitsiDomainAktiv, {
         roomName: roomName,
         parentNode: document.getElementById('jitsi-container'),
         userInfo: { displayName: username },
@@ -496,6 +525,21 @@
       }
       document.getElementById('jitsi-container').style.display = 'none';
     }
+
+    // --- Gemerktes Token beim Oeffnen einsetzen ---
+    // Steht eines im Browser, wird es ins Feld geschrieben und gleich
+    // versucht. Klappt es, sieht man den Anmeldeschirm gar nicht erst.
+    // Klappt es nicht (Token geaendert, Server neu aufgesetzt), raeumt
+    // doLogin() es weg und der Anmeldeschirm steht normal da.
+    (function tokenWiederverwenden() {
+      let gemerkt = null;
+      try { gemerkt = localStorage.getItem('smutje-token'); } catch (e) {}
+      if (!gemerkt) return;
+      const feld = document.getElementById('token-input');
+      if (!feld) return;
+      feld.value = gemerkt;
+      doLogin();
+    })();
   </script>
 </body>
 </html>
