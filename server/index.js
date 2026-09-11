@@ -7,6 +7,7 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
 const { stmts } = require('./db');
+const { authMiddleware, authenticateToken } = require('./auth');
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -20,23 +21,24 @@ app.use(express.static(clientDir));
 
 // --- REST-Endpunkte ---
 
-// Login: Name entgegennehmen, zurückgeben
+// Login: Token prüfen, Username zurückgeben
 app.post('/login', (req, res) => {
-  const name = (req.body.name || '').trim();
-  if (!name) {
-    return res.status(400).json({ error: 'Name fehlt' });
+  const token = req.headers['x-token'] || req.body.token;
+  const user = authenticateToken(token);
+  if (!user) {
+    return res.status(401).json({ error: 'Ungültiges Token' });
   }
-  res.json({ name });
+  res.json({ name: user.name });
 });
 
 // Channels auflisten
-app.get('/channels', (req, res) => {
+app.get('/channels', authMiddleware, (req, res) => {
   const channels = stmts.getChannels.all().map((c) => c.name);
   res.json(channels);
 });
 
 // Letzte 50 Nachrichten eines Channels
-app.get('/messages/:channel', (req, res) => {
+app.get('/messages/:channel', authMiddleware, (req, res) => {
   const rows = stmts.getMessages.all(req.params.channel);
   // Chronologische Reihenfolge (älteste zuerst)
   res.json(rows.reverse());
@@ -46,12 +48,12 @@ app.get('/messages/:channel', (req, res) => {
 
 const wss = new WebSocketServer({ server });
 
-// Verbundene Clients: Map<ws, { name, channel }>
+// Verbundene Clients: Map<ws, { user, channel }>
 const clients = new Map();
 
 wss.on('connection', (ws) => {
-  // Warte auf erste Nachricht mit Name
-  let registered = false;
+  // Noch nicht authentifiziert – warte auf erste Nachricht mit Token
+  let authenticated = false;
 
   ws.on('message', (raw) => {
     let msg;
@@ -61,15 +63,15 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // Erste Nachricht muss Name enthalten
-    if (!registered) {
-      const name = (msg.name || '').trim();
-      if (!name) {
-        ws.close(4001, 'Name fehlt');
+    // Erste Nachricht muss Token enthalten
+    if (!authenticated) {
+      const user = authenticateToken(msg.token);
+      if (!user) {
+        ws.close(4001, 'Nicht authentifiziert');
         return;
       }
-      registered = true;
-      clients.set(ws, { name, channel: 'allgemein' });
+      authenticated = true;
+      clients.set(ws, { user, channel: 'allgemein' });
       return;
     }
 
@@ -84,22 +86,26 @@ wss.on('connection', (ws) => {
     // Nachricht senden
     if (msg.type === 'message' && msg.text && msg.text.trim()) {
       const text = msg.text.trim().slice(0, 2000); // Max 2000 Zeichen
-      const channel = client.channel;
+      const channelName = client.channel;
+
+      // Channel-ID aus DB holen
+      const channel = stmts.getChannelByName.get(channelName);
+      if (!channel) return;
 
       // In DB speichern
-      stmts.insertMessage.run(channel, client.name, text);
+      stmts.insertMessage.run(channel.id, client.user.id, text);
 
       // An alle Clients im gleichen Channel senden
       const payload = JSON.stringify({
         type: 'message',
-        channel,
-        user: client.name,
+        channel: channelName,
+        user: client.user.name,
         text,
         ts: new Date().toISOString(),
       });
 
       for (const [peer, info] of clients) {
-        if (info.channel === channel && peer.readyState === 1) {
+        if (info.channel === channelName && peer.readyState === 1) {
           peer.send(payload);
         }
       }
